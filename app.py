@@ -185,4 +185,6 @@ def handle_disconnect():
     emit('user_count', {'count': len(connected_users)}, broadcast=True)
 
 if __name__ == '__main__':
-    socketio.run(app, debug=True)
+    # Use environment variable for port
+    port = int(os.environ.get('PORT', 5000))
+    socketio.run(app, host='0.0.0.0', port=port, debug=False)

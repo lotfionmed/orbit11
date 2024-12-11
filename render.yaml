@@ -2,8 +2,13 @@ services:
   - type: web
     name: orbit
     env: python
+    plan: free
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn --worker-class eventlet -w 1 app:socketio
     envVars:
       - key: PYTHON_VERSION
         value: 3.8.10
+      - key: PORT
+        value: 10000
+      - key: FLASK_ENV
+        value: production
