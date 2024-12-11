@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Orbit11 - Collaborative Text Platform</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700&family=Roboto:wght@300;400;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        :root {
+            --bg-color: #1a1a1a;
+            --text-color: #ffffff;
+            --input-bg: #2d2d2d;
+            --input-border: #3d3d3d;
+            --accent-color: #00ff9d;
+            --shadow-color: rgba(0,0,0,0.2);
+            --hover-color: #00cc7d;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            transition: all 0.3s ease;
+        }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #canvas {
+            flex-grow: 1;
+            position: relative;
+            background: 
+                linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px),
+                linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px);
+            background-size: 20px 20px;
+            cursor: crosshair;
+        }
+
+        #instructions {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: var(--input-bg);
+            padding: 10px 20px;
+            border-radius: 25px;
+            font-size: 14px;
+            box-shadow: 0 4px 6px var(--shadow-color);
+            z-index: 1000;
+            opacity: 0.9;
+        }
+
+        #control-panel {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background-color: var(--input-bg);
+            padding: 15px 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 15px;
+            box-shadow: 0 -2px 10px var(--shadow-color);
+            backdrop-filter: blur(10px);
+        }
+
+        .input-container {
+            position: relative;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            width: 100%;
+            max-width: 600px;
+        }
+
+        #text-input {
+            width: 100%;
+            padding: 12px 20px;
+            border: 2px solid var(--input-border);
+            border-radius: 25px;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-size: 16px;
+            outline: none;
+        }
+
+        #text-input:focus {
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 2px rgba(0, 255, 157, 0.2);
+        }
+
+        #char-counter {
+            position: absolute;
+            right: 60px;
+            font-size: 12px;
+            color: #888;
+            pointer-events: none;
+        }
+
+        #save-btn {
+            background-color: var(--accent-color);
+            color: var(--bg-color);
+            border: none;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            font-size: 24px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 5px var(--shadow-color);
+        }
+
+        #save-btn:hover {
+            background-color: var(--hover-color);
+            transform: scale(1.05);
+        }
+
+        .text-element {
+            position: absolute;
+            background-color: rgba(255, 255, 255, 0.95);
+            padding: 10px 15px;
+            border-radius: 15px;
+            cursor: move;
+            user-select: none;
+            box-shadow: 0 2px 8px var(--shadow-color);
+            border: 1px solid var(--input-border);
+            max-width: 300px;
+            word-wrap: break-word;
+            color: #000000;
+        }
+
+        .text-element:hover {
+            box-shadow: 0 4px 12px var(--shadow-color);
+            transform: translateY(-1px);
+        }
+
+        .text-controls {
+            position: absolute;
+            top: -30px;
+            right: 0;
+            display: flex;
+            gap: 5px;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            background-color: var(--input-bg);
+            padding: 5px;
+            border-radius: 20px;
+        }
+
+        .text-element:hover .text-controls {
+            opacity: 1;
+        }
+
+        .control-btn {
+            background-color: var(--input-bg);
+            color: var(--text-color);
+            border: none;
+            width: 25px;
+            height: 25px;
+            border-radius: 50%;
+            font-size: 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .control-btn:hover {
+            background-color: var(--accent-color);
+            color: var(--bg-color);
+        }
+
+        .like-count, 
+        .dislike-count {
+            color: var(--text-color);
+            margin: 0 3px;
+            font-size: 12px;
+        }
+
+        #online-users {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background-color: var(--input-bg);
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 2px 8px var(--shadow-color);
+            z-index: 1000;
+        }
+
+        #online-users i {
+            color: var(--accent-color);
+        }
+
+        .online-pulse {
+            width: 8px;
+            height: 8px;
+            background-color: var(--accent-color);
+            border-radius: 50%;
+            margin-right: 5px;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 rgba(0, 255, 157, 0.7);
+            }
+            
+            70% {
+                transform: scale(1);
+                box-shadow: 0 0 0 5px rgba(0, 255, 157, 0);
+            }
+            
+            100% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 rgba(0, 255, 157, 0);
+            }
+        }
+
+        .platform-logo {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--accent-color);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            z-index: 1000;
+            text-shadow: 0 0 10px rgba(0, 255, 157, 0.5);
+        }
+
+        .platform-logo .orbit {
+            color: var(--text-color);
+        }
+
+        .platform-logo .number {
+            color: var(--accent-color);
+            margin-left: -5px;
+        }
+
+        .platform-logo-icon {
+            width: 30px;
+            height: 30px;
+            background: radial-gradient(circle at center, var(--accent-color), transparent 70%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: orbit-pulse 3s infinite;
+        }
+
+        @keyframes orbit-pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+
+        /* Splash Screen Styles */
+        #splash-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--bg-color);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            opacity: 1;
+            transition: opacity 0.5s ease-in-out;
+        }
+
+        #splash-screen.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        #splash-logo {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        #splash-logo .logo-icon {
+            width: 80px;
+            height: 80px;
+            background: radial-gradient(circle at center, var(--accent-color), transparent 70%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: splash-orbit-pulse 2s infinite;
+            box-shadow: 0 0 20px rgba(0, 255, 157, 0.5);
+        }
+
+        #splash-logo .logo-text {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 48px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+        }
+
+        #splash-logo .orbit {
+            color: var(--text-color);
+        }
+
+        #splash-logo .number {
+            color: var(--accent-color);
+            margin-left: -10px;
+        }
+
+        #splash-loading {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: var(--text-color);
+            font-size: 18px;
+        }
+
+        #splash-loading .loading-dot {
+            width: 10px;
+            height: 10px;
+            background-color: var(--accent-color);
+            border-radius: 50%;
+            animation: loading-pulse 1.5s infinite;
+        }
+
+        #splash-loading .loading-dot:nth-child(2) {
+            animation-delay: 0.3s;
+        }
+
+        #splash-loading .loading-dot:nth-child(3) {
+            animation-delay: 0.6s;
+        }
+
+        @keyframes splash-orbit-pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+
+        @keyframes loading-pulse {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 1; }
+        }
+
+        @media (max-width: 600px) {
+            #control-panel {
+                padding: 10px;
+            }
+
+            .input-container {
+                max-width: 100%;
+            }
+
+            #text-input {
+                font-size: 14px;
+                padding: 10px 15px;
+            }
+
+            #instructions {
+                font-size: 12px;
+                padding: 8px 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Splash Screen -->
+    <div id="splash-screen">
+        <div id="splash-logo">
+            <div class="logo-icon">
+                <svg width="50" height="50" viewBox="0 0 100 100">
+                    <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(0,255,157,0.2)" stroke-width="2" />
+                    <circle cx="50" cy="10" r="5" fill="#00ff9d" />
+                    <circle cx="50" cy="90" r="5" fill="#00ff9d" />
+                    <circle cx="10" cy="50" r="5" fill="#00ff9d" />
+                    <circle cx="90" cy="50" r="5" fill="#00ff9d" />
+                    <circle cx="50" cy="50" r="10" fill="#00ff9d" />
+                </svg>
+            </div>
+            <div class="logo-text">
+                <span class="orbit">Orbit</span>
+                <span class="number">11</span>
+            </div>
+        </div>
+        <div id="splash-loading">
+            <span>Chargement</span>
+            <div class="loading-dot"></div>
+            <div class="loading-dot"></div>
+            <div class="loading-dot"></div>
+        </div>
+    </div>
+
+    <div class="platform-logo">
+        <div class="platform-logo-icon">
+            <i class="fas fa-circle"></i>
+        </div>
+        <span class="orbit">Orbit</span>
+        <span class="number">11</span>
+    </div>
+    <div id="instructions">
+        Cliquez n'importe où pour ajouter du texte 
+    </div>
+
+    <div id="online-users">
+        <div class="online-pulse"></div>
+        <i class="fas fa-users"></i>
+        <span id="user-count">0</span> en ligne
+    </div>
+
+    <div id="canvas"></div>
+
+    <div id="control-panel">
+        <div class="input-container">
+            <input type="text" id="text-input" placeholder="Écrivez votre texte..." maxlength="50">
+            <span id="char-counter">0/50</span>
+        </div>
+        <button id="save-btn">+</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const textInput = document.getElementById('text-input');
+        const saveBtn = document.getElementById('save-btn');
+        const instructionsDiv = document.getElementById('instructions');
+        const charCounter = document.getElementById('char-counter');
+        const userCountElement = document.getElementById('user-count');
+
+        // Unique identifier for texts
+        function generateUniqueId() {
+            return Date.now().toString() + Math.random().toString(36).substr(2, 9);
+        }
+
+        // Function to create a draggable text element
+        function createDraggableText(textContent, x, y, id = null, color = null) {
+            // Remove instructions after first text
+            if (canvas.children.length === 0) {
+                instructionsDiv.style.display = 'none';
+            }
+
+            const textContainer = document.createElement('div');
+            textContainer.classList.add('text-element');
+            textContainer.style.left = `${x}px`;
+            textContainer.style.top = `${y}px`;
+            
+            // Set color if provided
+            if (color) {
+                textContainer.style.backgroundColor = color;
+            }
+
+            // Assign unique identifier
+            const uniqueId = id || generateUniqueId();
+            textContainer.dataset.textId = uniqueId;
+
+            // Create text actions
+            const actionsContainer = document.createElement('div');
+            actionsContainer.classList.add('text-controls');
+
+            // Delete button
+            const deleteBtn = document.createElement('button');
+            deleteBtn.classList.add('control-btn');
+            deleteBtn.innerHTML = '<i class="fas fa-trash"></i>';
+            deleteBtn.title = 'Supprimer';
+            deleteBtn.addEventListener('click', () => {
+                // Remove from backend
+                fetch('/delete_text', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        id: uniqueId
+                    })
+                });
+                textContainer.remove();
+            });
+
+            // Copy button
+            const copyBtn = document.createElement('button');
+            copyBtn.classList.add('control-btn');
+            copyBtn.innerHTML = '<i class="fas fa-copy"></i>';
+            copyBtn.title = 'Copier';
+            copyBtn.addEventListener('click', () => {
+                navigator.clipboard.writeText(textContent).then(() => {
+                    copyBtn.innerHTML = '<i class="fas fa-check"></i>';
+                    setTimeout(() => {
+                        copyBtn.innerHTML = '<i class="fas fa-copy"></i>';
+                    }, 1000);
+                });
+            });
+
+            // Color change button
+            const colorBtn = document.createElement('button');
+            colorBtn.classList.add('control-btn');
+            colorBtn.innerHTML = '<i class="fas fa-palette"></i>';
+            colorBtn.title = 'Changer la couleur';
+            colorBtn.addEventListener('click', () => {
+                const randomColor = `hsl(${Math.random() * 360}, 70%, 80%)`;
+                textContainer.style.backgroundColor = randomColor;
+                
+                // Send color update to backend
+                fetch('/update_text_color', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        id: uniqueId,
+                        color: randomColor
+                    })
+                });
+            });
+
+            // Like button
+            const likeBtn = document.createElement('button');
+            likeBtn.classList.add('control-btn');
+            likeBtn.innerHTML = '<i class="fas fa-thumbs-up"></i>';
+            const likeCount = document.createElement('span');
+            likeCount.classList.add('like-count');
+            likeCount.innerText = '0';
+
+            // Dislike button
+            const dislikeBtn = document.createElement('button');
+            dislikeBtn.classList.add('control-btn');
+            dislikeBtn.innerHTML = '<i class="fas fa-thumbs-down"></i>';
+            const dislikeCount = document.createElement('span');
+            dislikeCount.classList.add('dislike-count');
+            dislikeCount.innerText = '0';
+
+            likeBtn.addEventListener('click', () => {
+                fetch('/like_text', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ id: uniqueId })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        likeCount.innerText = data.likes;
+                        dislikeCount.innerText = data.dislikes;
+                    }
+                });
+            });
+
+            dislikeBtn.addEventListener('click', () => {
+                fetch('/dislike_text', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ id: uniqueId })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        likeCount.innerText = data.likes;
+                        dislikeCount.innerText = data.dislikes;
+                    }
+                });
+            });
+
+            // Add action buttons to actions container
+            actionsContainer.appendChild(deleteBtn);
+            actionsContainer.appendChild(copyBtn);
+            actionsContainer.appendChild(colorBtn);
+            actionsContainer.appendChild(likeBtn);
+            actionsContainer.appendChild(likeCount);
+            actionsContainer.appendChild(dislikeBtn);
+            actionsContainer.appendChild(dislikeCount);
+
+            // Create text element
+            const textElement = document.createElement('span');
+            textElement.textContent = textContent;
+
+            // Combine elements
+            textContainer.appendChild(actionsContainer);
+            textContainer.appendChild(textElement);
+            
+            // Make text draggable
+            textContainer.addEventListener('mousedown', startDrag);
+            
+            canvas.appendChild(textContainer);
+
+            // If it's a newly created text, send to backend
+            if (!id) {
+                fetch('/save_text', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        id: uniqueId,
+                        text: textContent,
+                        x: x,
+                        y: y
+                    })
+                });
+            }
+
+            return textContainer;
+        }
+
+        // Load existing texts on page load
+        async function loadExistingTexts() {
+            try {
+                const response = await fetch('/get_texts');
+                const texts = await response.json();
+                texts.forEach(textData => {
+                    createDraggableText(
+                        textData.content, 
+                        textData.x, 
+                        textData.y, 
+                        textData.id, 
+                        textData.color
+                    );
+                });
+            } catch (error) {
+                console.error('Error loading texts:', error);
+            }
+        }
+
+        // Event listener for adding new text
+        saveBtn.addEventListener('click', () => {
+            const textValue = textInput.value.trim();
+            if (textValue) {
+                // Position text near the center of the canvas
+                const x = canvas.clientWidth / 2;
+                const y = canvas.clientHeight / 2;
+                createDraggableText(textValue, x, y);
+                textInput.value = '';
+            }
+        });
+
+        // Allow adding text by pressing Enter
+        textInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                saveBtn.click();
+            }
+        });
+
+        // Event listener for adding text by clicking on canvas
+        canvas.addEventListener('click', function(e) {
+            // Ignore clicks on existing text items
+            if (e.target !== canvas) return;
+
+            const textValue = textInput.value.trim();
+            if (textValue) {
+                createDraggableText(textValue, e.clientX, e.clientY);
+                textInput.value = '';
+            }
+        });
+
+        // Update character counter
+        textInput.addEventListener('input', () => {
+            const length = textInput.value.length;
+            charCounter.textContent = `${length}/50`;
+        });
+
+        // Drag functionality
+        let draggedElement = null;
+        let offsetX, offsetY;
+
+        function startDrag(e) {
+            // Prevent dragging if clicking on action buttons
+            if (e.target.closest('.text-controls')) return;
+
+            // Prevent dragging if clicking on text itself
+            if (e.target.closest('.text-element')) {
+                draggedElement = e.target.closest('.text-element');
+                offsetX = e.clientX - draggedElement.offsetLeft;
+                offsetY = e.clientY - draggedElement.offsetTop;
+                
+                document.addEventListener('mousemove', drag);
+                document.addEventListener('mouseup', stopDrag);
+            }
+        }
+
+        function drag(e) {
+            if (draggedElement) {
+                draggedElement.style.left = `${e.clientX - offsetX}px`;
+                draggedElement.style.top = `${e.clientY - offsetY}px`;
+            }
+        }
+
+        function stopDrag() {
+            document.removeEventListener('mousemove', drag);
+            document.removeEventListener('mouseup', stopDrag);
+            
+            if (draggedElement) {
+                // Send updated position to backend
+                fetch('/update_text_position', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        id: draggedElement.dataset.textId,
+                        text: draggedElement.querySelector('span').textContent,
+                        x: parseInt(draggedElement.style.left),
+                        y: parseInt(draggedElement.style.top)
+                    })
+                });
+            }
+            
+            draggedElement = null;
+        }
+
+        // Load texts when page loads
+        loadExistingTexts();
+
+        // Socket.IO connection
+        const socket = io();
+        socket.on('connect', () => {
+            console.log('Connected to server');
+        });
+
+        socket.on('user_count', (data) => {
+            userCountElement.textContent = data.count;
+        });
+
+        // Splash Screen Logic
+        document.addEventListener('DOMContentLoaded', () => {
+            const splashScreen = document.getElementById('splash-screen');
+            
+            // Simulate loading process
+            setTimeout(() => {
+                splashScreen.classList.add('hidden');
+                
+                // Remove from DOM after animation
+                setTimeout(() => {
+                    splashScreen.remove();
+                }, 500);
+            }, 2500);
+        });
+    </script>
+</body>
+</html>
