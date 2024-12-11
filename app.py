@@ -3,16 +3,29 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from flask_socketio import SocketIO, emit
 import os
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 CORS(app)
-socketio = SocketIO(app, cors_allowed_origins="*")
+
+# Configure SocketIO with increased ping timeout and ping interval
+socketio = SocketIO(app, 
+                    cors_allowed_origins="*", 
+                    ping_timeout=10, 
+                    ping_interval=5,
+                    async_mode='threading')
 
 # Configure SQLite database
 basedir = os.path.abspath(os.path.dirname(__file__))
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'texts.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['APPLICATION_NAME'] = 'Orbit11'
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'fallback_secret_key_change_in_production')
+
 db = SQLAlchemy(app)
 
 # Text model
@@ -32,9 +45,6 @@ def init_db():
         db.drop_all()
         # Create all tables
         db.create_all()
-
-# Initialize the database
-init_db()
 
 # Garder une trace des utilisateurs connectés
 connected_users = set()
@@ -185,5 +195,19 @@ def handle_disconnect():
     emit('user_count', {'count': len(connected_users)}, broadcast=True)
 
 if __name__ == '__main__':
+    # Ensure database is created
+    with app.app_context():
+        try:
+            db.create_all()
+            logger.info("Database initialized successfully")
+        except Exception as e:
+            logger.error(f"Database initialization error: {e}")
+    
+    # Use gevent as async mode for better performance
     port = int(os.environ.get('PORT', 5000))
-    socketio.run(app, host='0.0.0.0', port=port, debug=False)
+    logger.info(f"Starting server on port {port}")
+    socketio.run(app, 
+                 host='0.0.0.0', 
+                 port=port, 
+                 debug=False, 
+                 use_reloader=False)
