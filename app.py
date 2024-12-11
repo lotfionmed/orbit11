@@ -4,6 +4,7 @@ from flask_cors import CORS
 from flask_socketio import SocketIO, emit
 import os
 import logging
+import urllib.parse
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -19,9 +20,14 @@ socketio = SocketIO(app,
                     ping_interval=5,
                     async_mode='threading')
 
-# Configure SQLite database
-basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'texts.db')
+# Configure PostgreSQL database
+# Use DATABASE_URL from environment, fallback to SQLite for local development
+database_url = os.environ.get('DATABASE_URL', 'sqlite:///texts.db')
+if database_url.startswith('postgres://'):
+    # Render provides postgres:// URL, convert to SQLAlchemy format
+    database_url = database_url.replace('postgres://', 'postgresql://')
+
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['APPLICATION_NAME'] = 'Orbit11'
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'fallback_secret_key_change_in_production')

@@ -14,3 +14,9 @@ services:
         value: 3.9.0
       - key: SECRET_KEY
         generateValue: true
+
+databases:
+  - name: orbit11db
+    databaseName: orbit11
+    user: orbit11user
+    plan: free
